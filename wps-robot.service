@@ -1,35 +1,35 @@
 [Unit]
 Description=WPS Robot Open API Service
-Documentation=https://github.com/yourusername/wps_robot_open_api
+Documentation=https://github.com/luyishao/wps_robot_open_api
 After=network.target
 
 [Service]
-Type=notify
+# Gunicorn 不发送 sd_notify，必须用 simple 而非 notify
+Type=simple
 User=www-data
 Group=www-data
 
 # 工作目录（修改为实际路径）
-WorkingDirectory=/opt/wps_robot_open_api
+WorkingDirectory=/home/esau/wps_robot_open_api
 
 # 环境变量
-Environment="PATH=/opt/wps_robot_open_api/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PATH=/home/esau/wps_robot_open_api/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="DJANGO_SETTINGS_MODULE=wps_robot.settings"
 
-# Gunicorn启动命令
-ExecStart=/opt/wps_robot_open_api/venv/bin/gunicorn \
+# Gunicorn 启动命令（sync 下不使用 --threads）
+ExecStart=/home/esau/wps_robot_open_api/venv/bin/gunicorn \
     --bind 0.0.0.0:80 \
     --workers 4 \
     --worker-class sync \
-    --threads 2 \
     --timeout 60 \
     --keepalive 5 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
-    --access-logfile /opt/wps_robot_open_api/logs/gunicorn-access.log \
-    --error-logfile /opt/wps_robot_open_api/logs/gunicorn-error.log \
+    --access-logfile /home/esau/wps_robot_open_api/logs/gunicorn-access.log \
+    --error-logfile /home/esau/wps_robot_open_api/logs/gunicorn-error.log \
     --log-level info \
-    --pid /opt/wps_robot_open_api/gunicorn.pid \
+    --pid /home/esau/wps_robot_open_api/gunicorn.pid \
     wps_robot.wsgi:application
 
 # 优雅重启
@@ -45,12 +45,12 @@ StartLimitBurst=5
 LimitNOFILE=65535
 LimitNPROC=4096
 
-# 安全设置
+# 安全设置（需可写：项目根目录、logs、db、media）
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/wps_robot_open_api/logs /opt/wps_robot_open_api/media /opt/wps_robot_open_api/db.sqlite3
+ReadWritePaths=/home/esau/wps_robot_open_api
 
 [Install]
 WantedBy=multi-user.target
