@@ -1,3 +1,4 @@
+import base64
 import json
 import importlib
 import logging
@@ -300,12 +301,13 @@ def send_message(request, robot_id):
 def webhook_callback(request, username, robot_name):
     """接收webhook回调"""
     raw_body = request.body
-    request_raw = (raw_body[:2000].decode('utf-8', errors='replace') + (' ... (truncated)' if len(raw_body) > 2000 else '')) if raw_body else '(empty)'
+    # 解码前的完整 request.body，用 base64 存以便在日志/JSON 中完整记录
+    request_raw_base64 = base64.b64encode(raw_body).decode('ascii') if raw_body else ''
 
-    # 请求参数和 body 输出到控制台和日志文件（含 request_raw 列）
+    # 请求参数和完整 raw body（base64）输出到控制台和日志文件
     logger.info(
-        'webhook 请求: method=%s path=%s username=%s robot_name=%s query=%s | request_raw=%s',
-        request.method, request.path, username, robot_name, dict(request.GET), request_raw
+        'webhook 请求: method=%s path=%s username=%s robot_name=%s query=%s | request_raw_base64(len=%s)=%s',
+        request.method, request.path, username, robot_name, dict(request.GET), len(request_raw_base64), request_raw_base64
     )
 
     try:
@@ -317,8 +319,8 @@ def webhook_callback(request, username, robot_name):
             resp_body = {'error': 'Robot not found'}
             response_raw = json.dumps(resp_body, ensure_ascii=False)
             logger.error(
-                'webhook 响应错误 404: request_raw=%s | response_raw=%s | 响应 body=%s',
-                request_raw, response_raw, resp_body
+                'webhook 响应错误 404: request_raw_base64(len=%s)=%s | response_raw=%s | 响应 body=%s',
+                len(request_raw_base64), request_raw_base64, response_raw, resp_body
             )
             return JsonResponse(resp_body, status=404)
         
@@ -326,8 +328,8 @@ def webhook_callback(request, username, robot_name):
         if request.method == 'GET':
             get_resp = {'result': 'ok'}
             logger.info(
-                'webhook 响应 GET 200: request_raw=%s | response_raw=%s',
-                request_raw, json.dumps(get_resp, ensure_ascii=False)
+                'webhook 响应 GET 200: request_raw_base64(len=%s)=%s | response_raw=%s',
+                len(request_raw_base64), request_raw_base64, json.dumps(get_resp, ensure_ascii=False)
             )
             return JsonResponse(get_resp)
         
@@ -343,13 +345,13 @@ def webhook_callback(request, username, robot_name):
                     'error': 'Invalid JSON',
                     'hint': 'Send Content-Type: application/json and valid JSON body (e.g. {} for empty)'
                 }
+                response_raw = json.dumps(resp_body, ensure_ascii=False)
                 logger.error(
-                    'webhook 响应错误 400: 请求 body(raw)=%s | 响应 body=%s',
-                    raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
-                    resp_body
+                    'webhook 响应错误 400: request_raw_base64(len=%s)=%s | response_raw=%s | 响应 body=%s',
+                    len(request_raw_base64), request_raw_base64, response_raw, resp_body
                 )
                 return JsonResponse(resp_body, status=400)
-        logger.info('webhook 请求 body (parsed): %s', data)
+        logger.info('webhook 请求 body (parsed): %s | request_raw_base64(len=%s)=%s', data, len(request_raw_base64), request_raw_base64)
         
         # 构建log数据
         log_data = {
@@ -461,21 +463,22 @@ def webhook_callback(request, username, robot_name):
         else:
             final_response = {'result': 'ok'}
         
-        # 记录响应信息到log
+        # 记录响应信息到log（含 response 的 raw 列：原始响应体字符串）
+        response_raw = json.dumps(final_response, ensure_ascii=False)
         log_data = message_record.log_data or {}
         log_data['response'] = {
             'status_code': 200,
-            'body': final_response
+            'body': final_response,
+            'body_raw': response_raw
         }
         message_record.log_data = log_data
         
         message_record.save()
         
-        # 成功响应：记录 request_raw、response_raw 及解析后的 body
-        response_raw = json.dumps(final_response, ensure_ascii=False)
+        # 成功响应：记录完整 request_raw_base64、response_raw 及解析后的 body
         logger.info(
-            'webhook 响应成功 200: request_raw=%s | response_raw=%s | 请求 body(parsed)=%s | 响应 body=%s',
-            request_raw, response_raw, data, final_response
+            'webhook 响应成功 200: request_raw_base64(len=%s)=%s | response_raw=%s | 请求 body(parsed)=%s | 响应 body=%s',
+            len(request_raw_base64), request_raw_base64, response_raw, data, final_response
         )
         return JsonResponse(final_response)
     
@@ -483,8 +486,8 @@ def webhook_callback(request, username, robot_name):
         resp_body = {'error': 'Internal server error', 'message': str(e)}
         response_raw = json.dumps(resp_body, ensure_ascii=False)
         logger.error(
-            'webhook 响应错误 500: request_raw=%s | response_raw=%s | 异常=%s traceback=%s | 响应 body=%s',
-            request_raw, response_raw, type(e).__name__, traceback.format_exc(), resp_body,
+            'webhook 响应错误 500: request_raw_base64(len=%s)=%s | response_raw=%s | 异常=%s traceback=%s | 响应 body=%s',
+            len(request_raw_base64), request_raw_base64, response_raw, type(e).__name__, traceback.format_exc(), resp_body,
             exc_info=True
         )
         return JsonResponse(resp_body, status=500)
