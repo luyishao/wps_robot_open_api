@@ -1,0 +1,95 @@
+{% extends 'robots/base.html' %}
+
+{% block page_title %}{{ action }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.username.id_for_label }}" class="form-label">
+                            用户名 <span class="text-danger">*</span>
+                        </label>
+                        {{ form.username }}
+                        {% if form.username.errors %}
+                        <div class="text-danger">{{ form.username.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.email.id_for_label }}" class="form-label">
+                            邮箱
+                        </label>
+                        {{ form.email }}
+                        {% if form.email.errors %}
+                        <div class="text-danger">{{ form.email.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    {% if not user_obj %}
+                    <!-- 创建用户时显示密码字段 -->
+                    <div class="mb-3">
+                        <label for="{{ form.password1.id_for_label }}" class="form-label">
+                            密码 <span class="text-danger">*</span>
+                        </label>
+                        {{ form.password1 }}
+                        {% if form.password1.errors %}
+                        <div class="text-danger">{{ form.password1.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.password2.id_for_label }}" class="form-label">
+                            确认密码 <span class="text-danger">*</span>
+                        </label>
+                        {{ form.password2 }}
+                        {% if form.password2.errors %}
+                        <div class="text-danger">{{ form.password2.errors }}</div>
+                        {% endif %}
+                    </div>
+                    {% else %}
+                    <!-- 编辑用户时显示新密码字段 -->
+                    <div class="mb-3">
+                        <label for="{{ form.new_password.id_for_label }}" class="form-label">
+                            新密码
+                        </label>
+                        {{ form.new_password }}
+                        {% if form.new_password.errors %}
+                        <div class="text-danger">{{ form.new_password.errors }}</div>
+                        {% endif %}
+                        <small class="form-text text-muted">留空则不修改密码</small>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        {{ form.is_active }}
+                        <label class="form-check-label" for="{{ form.is_active.id_for_label }}">
+                            启用此用户
+                        </label>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3 form-check">
+                        {{ form.is_admin }}
+                        <label class="form-check-label" for="{{ form.is_admin.id_for_label }}">
+                            设置为管理员
+                        </label>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check-circle"></i> 保存
+                        </button>
+                        <a href="{% url 'user_management' %}" class="btn btn-secondary">
+                            取消
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

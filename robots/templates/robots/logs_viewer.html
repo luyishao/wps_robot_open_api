@@ -1,0 +1,314 @@
+{% extends "robots/base.html" %}
+{% load json_filters %}
+
+{% block title %}系统日志{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="bi bi-file-text"></i> 系统日志</h2>
+                <div>
+                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#clearLogsModal">
+                        <i class="bi bi-trash"></i> 清理旧日志
+                    </button>
+                    <a href="{% url 'download_all_logs' %}" class="btn btn-primary">
+                        <i class="bi bi-download"></i> 下载所有日志
+                    </a>
+                </div>
+            </div>
+
+            <!-- 日志统计 -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">日志文件统计</h6>
+                            <h3 class="card-title">{{ total_files }} 个文件</h3>
+                            <p class="card-text text-muted">总大小: {{ total_size_mb }} MB</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-subtitle mb-2 text-muted">当前显示</h6>
+                            <h3 class="card-title">最后 {{ current_lines }} 行</h3>
+                            <p class="card-text text-muted">日志类型: {{ current_type }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日志查看器 -->
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_type == 'django' %}active{% endif %}" 
+                               href="?type=django&lines={{ current_lines }}">
+                                <i class="bi bi-server"></i> Django日志
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_type == 'error' %}active{% endif %}" 
+                               href="?type=error&lines={{ current_lines }}">
+                                <i class="bi bi-exclamation-triangle"></i> 错误日志
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if current_type == 'webhook' %}active{% endif %}" 
+                               href="?type=webhook&lines={{ current_lines }}">
+                                <i class="bi bi-arrow-left-right"></i> Webhook日志
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <!-- 控制面板 -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="btn-group" role="group">
+                                <a href="?type={{ current_type }}&lines=50" class="btn btn-sm btn-outline-secondary {% if current_lines == 50 %}active{% endif %}">50行</a>
+                                <a href="?type={{ current_type }}&lines=100" class="btn btn-sm btn-outline-secondary {% if current_lines == 100 %}active{% endif %}">100行</a>
+                                <a href="?type={{ current_type }}&lines=200" class="btn btn-sm btn-outline-secondary {% if current_lines == 200 %}active{% endif %}">200行</a>
+                                <a href="?type={{ current_type }}&lines=500" class="btn btn-sm btn-outline-secondary {% if current_lines == 500 %}active{% endif %}">500行</a>
+                            </div>
+                        </div>
+                        <div class="col-md-6 text-end">
+                            <button id="refreshBtn" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-arrow-clockwise"></i> 刷新
+                            </button>
+                            <button id="autoRefreshBtn" class="btn btn-sm btn-outline-success" data-auto="false">
+                                <i class="bi bi-play-circle"></i> 自动刷新
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 日志内容 -->
+                    <div class="log-container">
+                        <pre id="logContent" class="log-content">{{ log_content }}</pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 日志文件列表 -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-folder"></i> 日志文件列表</h5>
+                </div>
+                <div class="card-body">
+                    {% if log_files %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>文件名</th>
+                                    <th>大小</th>
+                                    <th>修改时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in log_files %}
+                                <tr>
+                                    <td>
+                                        <i class="bi bi-file-text"></i> {{ file.name }}
+                                    </td>
+                                    <td>{{ file.size_mb }} MB</td>
+                                    <td>{{ file.modified|date:"Y-m-d H:i:s" }}</td>
+                                    <td>
+                                        <a href="{% url 'download_log' file.name %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-download"></i> 下载
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 暂无日志文件
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 清理日志模态框 -->
+<div class="modal fade" id="clearLogsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">清理旧日志</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="post" action="{% url 'clear_logs' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        此操作将删除旧的日志轮转文件（.log.1, .log.2等），不会删除当前日志文件。
+                    </div>
+                    <div class="mb-3">
+                        <label for="days" class="form-label">清理多少天前的日志</label>
+                        <select class="form-select" name="days" id="days">
+                            <option value="7">7天前</option>
+                            <option value="15">15天前</option>
+                            <option value="30" selected>30天前</option>
+                            <option value="60">60天前</option>
+                            <option value="90">90天前</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-danger">确认清理</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.log-container {
+    background-color: #1e1e1e;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.log-content {
+    background-color: #1e1e1e;
+    color: #d4d4d4;
+    padding: 15px;
+    margin: 0;
+    max-height: 600px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* 高亮不同级别的日志 */
+.log-content:has(text) {
+    color: #d4d4d4;
+}
+
+/* 让ERROR显示为红色 */
+pre:has(text):contains("ERROR") {
+    color: #f48771;
+}
+
+/* 让WARNING显示为黄色 */
+pre:has(text):contains("WARNING") {
+    color: #dcdcaa;
+}
+
+/* 让INFO显示为蓝色 */
+pre:has(text):contains("INFO") {
+    color: #4ec9b0;
+}
+
+/* 滚动条样式 */
+.log-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.log-content::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+</style>
+
+<script>
+let autoRefreshInterval = null;
+
+// 刷新日志
+function refreshLog() {
+    const logType = '{{ current_type }}';
+    const lines = '{{ current_lines }}';
+    
+    fetch(`/api/logs/tail/?type=${logType}&lines=${lines}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('logContent').textContent = data.content;
+                // 自动滚动到底部
+                const logContent = document.getElementById('logContent');
+                logContent.scrollTop = logContent.scrollHeight;
+            }
+        })
+        .catch(error => console.error('刷新日志失败:', error));
+}
+
+// 刷新按钮
+document.getElementById('refreshBtn').addEventListener('click', function() {
+    refreshLog();
+    const icon = this.querySelector('i');
+    icon.classList.add('spin');
+    setTimeout(() => icon.classList.remove('spin'), 1000);
+});
+
+// 自动刷新按钮
+document.getElementById('autoRefreshBtn').addEventListener('click', function() {
+    const isAuto = this.dataset.auto === 'true';
+    
+    if (isAuto) {
+        // 停止自动刷新
+        clearInterval(autoRefreshInterval);
+        this.dataset.auto = 'false';
+        this.classList.remove('btn-danger');
+        this.classList.add('btn-outline-success');
+        this.innerHTML = '<i class="bi bi-play-circle"></i> 自动刷新';
+    } else {
+        // 启动自动刷新
+        refreshLog(); // 立即刷新一次
+        autoRefreshInterval = setInterval(refreshLog, 3000); // 每3秒刷新一次
+        this.dataset.auto = 'true';
+        this.classList.remove('btn-outline-success');
+        this.classList.add('btn-danger');
+        this.innerHTML = '<i class="bi bi-stop-circle"></i> 停止刷新';
+    }
+});
+
+// 页面离开时停止自动刷新
+window.addEventListener('beforeunload', function() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+});
+
+// 添加旋转动画
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    .spin {
+        animation: spin 1s linear;
+    }
+`;
+document.head.appendChild(style);
+
+// 自动滚动到底部
+window.addEventListener('load', function() {
+    const logContent = document.getElementById('logContent');
+    logContent.scrollTop = logContent.scrollHeight;
+});
+</script>
+{% endblock %}

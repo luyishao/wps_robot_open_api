@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: wps_robot_web
+    ports:
+      - "80:80"
+    volumes:
+      # 持久化数据库
+      - ./db.sqlite3:/app/db.sqlite3
+      # 持久化上传的文件
+      - ./media:/app/media
+      # 持久化静态文件（可选）
+      - ./staticfiles:/app/staticfiles
+    environment:
+      - DJANGO_SETTINGS_MODULE=wps_robot.settings
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:80/login/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    command: gunicorn --bind 0.0.0.0:80 --workers 4 --timeout 60 wps_robot.wsgi:application
+
+  # 可选：使用Nginx作为反向代理
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: wps_robot_nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./staticfiles:/app/staticfiles:ro
+  #     - ./media:/app/media:ro
+  #   depends_on:
+  #     - web
+  #   restart: unless-stopped

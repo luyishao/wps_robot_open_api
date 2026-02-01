@@ -1,0 +1,83 @@
+{
+  "header": {
+    "title": {
+      "tag": "text",
+      "content": {
+        "type": "plainText",
+        "text": "标题"
+      }
+    },
+    "subtitle": {
+      "tag": "text",
+      "content": {
+        "type": "plainText",
+        "text": "副标题"
+      }
+    }
+  },
+  "elements": [
+    {
+      "tag": "text",
+      "content": {
+        "type": "markdown",
+        "text": "普通文本"
+      }
+    }
+  ],
+  "i18n": {
+    "zh-TW": {
+      "header": {
+        "title": {
+          "tag": "text",
+          "content": {
+            "type": "plainText",
+            "text": "標題"
+          }
+        },
+        "subtitle": {
+          "tag": "text",
+          "content": {
+            "type": "plainText",
+            "text": "副標題"
+          }
+        }
+      },
+      "elements": [
+        {
+          "tag": "text",
+          "content": {
+            "type": "markdown",
+            "text": "普通文本"
+          }
+        }
+      ]
+    },
+    "en-US": {
+      "header": {
+        "title": {
+          "tag": "text",
+          "content": {
+            "type": "plainText",
+            "text": "title"
+          }
+        },
+        "subtitle": {
+          "tag": "text",
+          "content": {
+            "type": "plainText",
+            "text": "sub title"
+          }
+        }
+      },
+      "elements": [
+        {
+          "tag": "text",
+          "content": {
+            "type": "markdown",
+            "text": "common text"
+          }
+        }
+      ]
+    }
+  }
+}

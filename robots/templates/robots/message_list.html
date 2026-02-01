@@ -1,0 +1,140 @@
+{% extends 'robots/base.html' %}
+
+{% block page_title %}消息记录{% endblock %}
+
+{% block content %}
+<!-- 筛选器 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">机器人</label>
+                <select name="robot" class="form-control">
+                    <option value="">全部</option>
+                    {% for robot in robots %}
+                    <option value="{{ robot.id }}" {% if current_robot == robot.id|stringformat:"s" %}selected{% endif %}>
+                        {{ robot.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">方向</label>
+                <select name="direction" class="form-control">
+                    <option value="">全部</option>
+                    <option value="incoming" {% if current_direction == 'incoming' %}selected{% endif %}>接收</option>
+                    <option value="outgoing" {% if current_direction == 'outgoing' %}selected{% endif %}>发送</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">状态</label>
+                <select name="status" class="form-control">
+                    <option value="">全部</option>
+                    <option value="success" {% if current_status == 'success' %}selected{% endif %}>成功</option>
+                    <option value="failed" {% if current_status == 'failed' %}selected{% endif %}>失败</option>
+                    <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>处理中</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">&nbsp;</label>
+                <button type="submit" class="btn btn-primary d-block w-100">
+                    <i class="bi bi-search"></i> 筛选
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 消息列表 -->
+<div class="card">
+    <div class="card-body">
+        {% if page_obj %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>机器人</th>
+                        <th>方向</th>
+                        <th>状态</th>
+                        <th>消息内容</th>
+                        <th>日志数据</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for message in page_obj %}
+                    <tr>
+                        <td>{{ message.created_at|date:"Y-m-d H:i:s" }}</td>
+                        <td>
+                            <a href="{% url 'robot_detail' message.robot.id %}">
+                                {{ message.robot.name }}
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if message.direction == 'incoming' %}info{% else %}success{% endif %}">
+                                {{ message.get_direction_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if message.status == 'success' %}success{% elif message.status == 'failed' %}danger{% else %}warning{% endif %}">
+                                {{ message.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <div class="message-content">
+                                <pre>{{ message.content|safe }}</pre>
+                            </div>
+                            {% if message.error_message %}
+                            <div class="text-danger mt-1">
+                                <small>错误: {{ message.error_message }}</small>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if message.log_data %}
+                            <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#log-{{ message.id }}" aria-expanded="false">
+                                <i class="bi bi-file-text"></i> 查看日志
+                            </button>
+                            <div class="collapse mt-2" id="log-{{ message.id }}">
+                                <div class="card card-body">
+                                    <pre style="max-height: 400px; overflow-y: auto; font-size: 0.8rem; background-color: #f8f9fa; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">{{ message.formatted_log|safe }}</pre>
+                                </div>
+                            </div>
+                            {% else %}
+                            <small class="text-muted">无日志</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 分页 -->
+        {% if page_obj.has_other_pages %}
+        <nav>
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if current_robot %}&robot={{ current_robot }}{% endif %}{% if current_direction %}&direction={{ current_direction }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">上一页</a>
+                </li>
+                {% endif %}
+                
+                <li class="page-item active">
+                    <span class="page-link">第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span>
+                </li>
+                
+                {% if page_obj.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if current_robot %}&robot={{ current_robot }}{% endif %}{% if current_direction %}&direction={{ current_direction }}{% endif %}{% if current_status %}&status={{ current_status }}{% endif %}">下一页</a>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+        {% else %}
+        <p class="text-center text-muted py-5">暂无消息记录</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

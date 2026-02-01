@@ -1,0 +1,162 @@
+{% extends 'robots/base.html' %}
+
+{% block page_title %}机器人详情 - {{ robot.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <!-- 机器人信息卡片 -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="bi bi-robot"></i> {{ robot.name }}
+                    {% if not robot.is_active %}
+                    <span class="badge bg-secondary">已禁用</span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>描述：</strong> {{ robot.description|default:"无" }}</p>
+                        <p><strong>Webhook URL：</strong> 
+                            {% if robot.webhook_url %}
+                            <code>{{ robot.webhook_url }}</code>
+                            {% else %}
+                            <span class="text-muted">未设置</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Hook脚本：</strong> 
+                            {% if robot.hook_script %}
+                            <code>{{ robot.hook_script }}.py</code>
+                            {% else %}
+                            <span class="text-muted">未设置</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Webhook回调地址：</strong></p>
+                        <div class="input-group mb-3">
+                            <input type="text" class="form-control" value="{{ request.scheme }}://{{ request.get_host }}{{ webhook_callback_url }}" id="callbackUrl" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyCallback()">
+                                <i class="bi bi-clipboard"></i> 复制
+                            </button>
+                        </div>
+                        <small class="text-muted">在WPS机器人配置中使用此地址接收消息</small>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <a href="{% url 'send_message' robot.id %}" class="btn btn-primary">
+                        <i class="bi bi-send"></i> 发送消息
+                    </a>
+                    <a href="{% url 'robot_edit' robot.id %}" class="btn btn-secondary">
+                        <i class="bi bi-pencil"></i> 编辑
+                    </a>
+                    <a href="{% url 'robot_delete' robot.id %}" class="btn btn-danger">
+                        <i class="bi bi-trash"></i> 删除
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 消息记录 -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-chat-dots"></i> 消息记录</h5>
+            </div>
+            <div class="card-body">
+                {% if page_obj %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>方向</th>
+                                <th>状态</th>
+                                <th>消息内容</th>
+                                <th>日志数据</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for message in page_obj %}
+                            <tr>
+                                <td>{{ message.created_at|date:"Y-m-d H:i:s" }}</td>
+                                <td>
+                                    <span class="badge bg-{% if message.direction == 'incoming' %}info{% else %}success{% endif %}">
+                                        {{ message.get_direction_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{% if message.status == 'success' %}success{% elif message.status == 'failed' %}danger{% else %}warning{% endif %}">
+                                        {{ message.get_status_display }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="message-content">
+                                        <pre>{{ message.content|safe }}</pre>
+                                    </div>
+                                    {% if message.error_message %}
+                                    <div class="text-danger mt-1">
+                                        <small>错误: {{ message.error_message }}</small>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if message.log_data %}
+                                    <button class="btn btn-sm btn-outline-info" type="button" data-bs-toggle="collapse" data-bs-target="#log-detail-{{ message.id }}" aria-expanded="false">
+                                        <i class="bi bi-file-text"></i> 查看日志
+                                    </button>
+                                    <div class="collapse mt-2" id="log-detail-{{ message.id }}">
+                                        <div class="card card-body">
+                                            <pre style="max-height: 400px; overflow-y: auto; font-size: 0.8rem; background-color: #f8f9fa; padding: 10px; border-radius: 4px; white-space: pre-wrap; word-wrap: break-word;">{{ message.formatted_log|safe }}</pre>
+                                        </div>
+                                    </div>
+                                    {% else %}
+                                    <small class="text-muted">无日志</small>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 分页 -->
+                {% if page_obj.has_other_pages %}
+                <nav>
+                    <ul class="pagination justify-content-center">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}">上一页</a>
+                        </li>
+                        {% endif %}
+                        
+                        <li class="page-item active">
+                            <span class="page-link">第 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }} 页</span>
+                        </li>
+                        
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}">下一页</a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+                {% else %}
+                <p class="text-center text-muted py-3">暂无消息记录</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyCallback() {
+    const input = document.getElementById('callbackUrl');
+    input.select();
+    document.execCommand('copy');
+    alert('已复制到剪贴板');
+}
+</script>
+{% endblock %}
