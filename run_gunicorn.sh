@@ -16,7 +16,7 @@ if ! command -v $GUNICORN &> /dev/null; then
     exit 1
 fi
 
-# 创建日志目录
+# 创建日志目录（与 Django settings.LOGS_DIR 一致）
 mkdir -p logs
 
 # 默认: 0.0.0.0:80，4 workers
@@ -24,9 +24,13 @@ HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-80}"
 WORKERS="${WORKERS:-4}"
 
+# 明确指定工作目录，保证 Web 管理的系统日志路径与 Django 一致
+PROJECT_DIR="$(pwd)"
+
 echo "启动 Gunicorn: $HOST:$PORT, workers=$WORKERS"
 echo "按 Ctrl+C 停止"
 exec $GUNICORN \
+    --chdir "$PROJECT_DIR" \
     --bind "$HOST:$PORT" \
     --workers "$WORKERS" \
     --worker-class sync \

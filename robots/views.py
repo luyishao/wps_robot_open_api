@@ -1,5 +1,6 @@
 import json
 import importlib
+import logging
 import traceback
 import os
 import zipfile
@@ -21,6 +22,8 @@ import requests
 
 from .models import Robot, Message, UserProfile
 from .forms import RobotForm, SendMessageForm, UserCreateForm, UserEditForm
+
+logger = logging.getLogger('robots')
 
 
 def user_login(request):
@@ -296,24 +299,57 @@ def send_message(request, robot_id):
 @require_http_methods(["GET", "POST"])
 def webhook_callback(request, username, robot_name):
     """接收webhook回调"""
+    # 请求参数和 body 输出到控制台和日志文件
+    logger.info(
+        'webhook 请求参数: method=%s path=%s username=%s robot_name=%s query=%s',
+        request.method, request.path, username, robot_name, dict(request.GET)
+    )
+    raw_body = request.body
+    if raw_body:
+        body_preview = raw_body[:2000].decode('utf-8', errors='replace')
+        if len(raw_body) > 2000:
+            body_preview += ' ... (truncated)'
+        logger.info('webhook 请求 body (raw): %s', body_preview)
+    else:
+        logger.info('webhook 请求 body: (empty)')
+
     try:
         # 获取用户和机器人
         try:
             user = User.objects.get(username=username)
             robot = Robot.objects.get(owner=user, name=robot_name, is_active=True)
         except (User.DoesNotExist, Robot.DoesNotExist):
-            return JsonResponse({'error': 'Robot not found'}, status=404)
+            resp_body = {'error': 'Robot not found'}
+            logger.error(
+                'webhook 响应错误 404: 请求 body(raw)=%s | 响应 body=%s',
+                raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
+                resp_body
+            )
+            return JsonResponse(resp_body, status=404)
         
         # GET请求：WPS验证回调地址
         if request.method == 'GET':
             return JsonResponse({'result': 'ok'})
         
         # POST请求:处理消息
-        # 解析请求数据
-        try:
-            data = json.loads(request.body.decode('utf-8'))
-        except json.JSONDecodeError:
-            return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        # 解析请求数据（空 body 或 Go/部分客户端发来的请求按 {} 处理，避免 400）
+        if not raw_body or not raw_body.strip():
+            data = {}
+        else:
+            try:
+                data = json.loads(raw_body.decode('utf-8'))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                resp_body = {
+                    'error': 'Invalid JSON',
+                    'hint': 'Send Content-Type: application/json and valid JSON body (e.g. {} for empty)'
+                }
+                logger.error(
+                    'webhook 响应错误 400: 请求 body(raw)=%s | 响应 body=%s',
+                    raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
+                    resp_body
+                )
+                return JsonResponse(resp_body, status=400)
+        logger.info('webhook 请求 body (parsed): %s', data)
         
         # 构建log数据
         log_data = {
@@ -435,14 +471,23 @@ def webhook_callback(request, username, robot_name):
         
         message_record.save()
         
-        # 返回响应
+        # 成功响应也记录请求 body 与响应 body
+        logger.info(
+            'webhook 响应成功 200: 请求 body(parsed)=%s | 响应 body=%s',
+            data, final_response
+        )
         return JsonResponse(final_response)
     
     except Exception as e:
-        return JsonResponse({
-            'error': 'Internal server error',
-            'message': str(e)
-        }, status=500)
+        resp_body = {'error': 'Internal server error', 'message': str(e)}
+        logger.error(
+            'webhook 响应错误 500: 异常=%s traceback=%s | 请求 body(raw)=%s | 响应 body=%s',
+            type(e).__name__, traceback.format_exc(),
+            raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
+            resp_body,
+            exc_info=True
+        )
+        return JsonResponse(resp_body, status=500)
 
 
 @login_required
@@ -575,7 +620,7 @@ def user_delete(request, user_id):
 @login_required
 def logs_viewer(request):
     """日志查看器页面"""
-    logs_dir = Path(settings.BASE_DIR) / 'logs'
+    logs_dir = settings.LOGS_DIR
     
     # 获取日志文件列表
     log_files = []
@@ -633,7 +678,7 @@ def logs_viewer(request):
 @login_required
 def download_log(request, log_name):
     """下载单个日志文件"""
-    logs_dir = Path(settings.BASE_DIR) / 'logs'
+    logs_dir = settings.LOGS_DIR
     log_file = logs_dir / log_name
     
     # 安全检查：确保文件在logs目录中
@@ -663,7 +708,7 @@ def download_log(request, log_name):
 @login_required
 def download_all_logs(request):
     """下载所有日志文件（打包为ZIP）"""
-    logs_dir = Path(settings.BASE_DIR) / 'logs'
+    logs_dir = settings.LOGS_DIR
     
     if not logs_dir.exists():
         messages.error(request, '日志目录不存在')
@@ -700,7 +745,7 @@ def clear_logs(request):
     if request.method != 'POST':
         return redirect('logs_viewer')
     
-    logs_dir = Path(settings.BASE_DIR) / 'logs'
+    logs_dir = settings.LOGS_DIR
     days = int(request.POST.get('days', '30'))
     
     if not logs_dir.exists():
@@ -736,7 +781,7 @@ def api_log_tail(request):
     log_type = request.GET.get('type', 'django')
     lines = int(request.GET.get('lines', '50'))
     
-    logs_dir = Path(settings.BASE_DIR) / 'logs'
+    logs_dir = settings.LOGS_DIR
     log_file_path = None
     
     if log_type == 'django':

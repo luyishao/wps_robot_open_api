@@ -9,6 +9,10 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 尽早创建日志目录，确保 Gunicorn 多进程下日志文件能正确创建
+LOGS_DIR = BASE_DIR / 'logs'
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
 # 从项目根目录加载 .env，避免 Gunicorn 工作目录导致读不到
 load_dotenv(BASE_DIR / '.env')
 
@@ -171,7 +175,7 @@ LOGGING = {
         'file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'django.log',
+            'filename': str(LOGS_DIR / 'django.log'),
             'maxBytes': 10485760,  # 10MB
             'backupCount': 5,
             'formatter': 'verbose',
@@ -180,7 +184,7 @@ LOGGING = {
         'error_file': {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'error.log',
+            'filename': str(LOGS_DIR / 'error.log'),
             'maxBytes': 10485760,  # 10MB
             'backupCount': 5,
             'formatter': 'verbose',
@@ -189,7 +193,7 @@ LOGGING = {
         'webhook_file': {
             'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': BASE_DIR / 'logs' / 'webhook.log',
+            'filename': str(LOGS_DIR / 'webhook.log'),
             'maxBytes': 10485760,  # 10MB
             'backupCount': 10,
             'formatter': 'verbose',
@@ -223,11 +227,6 @@ LOGGING = {
         'level': 'INFO',
     },
 }
-
-# 确保日志目录存在
-LOGS_DIR = BASE_DIR / 'logs'
-if not LOGS_DIR.exists():
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # REST Framework settings
 REST_FRAMEWORK = {
