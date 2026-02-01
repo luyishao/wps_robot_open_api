@@ -299,19 +299,14 @@ def send_message(request, robot_id):
 @require_http_methods(["GET", "POST"])
 def webhook_callback(request, username, robot_name):
     """接收webhook回调"""
-    # 请求参数和 body 输出到控制台和日志文件
-    logger.info(
-        'webhook 请求参数: method=%s path=%s username=%s robot_name=%s query=%s',
-        request.method, request.path, username, robot_name, dict(request.GET)
-    )
     raw_body = request.body
-    if raw_body:
-        body_preview = raw_body[:2000].decode('utf-8', errors='replace')
-        if len(raw_body) > 2000:
-            body_preview += ' ... (truncated)'
-        logger.info('webhook 请求 body (raw): %s', body_preview)
-    else:
-        logger.info('webhook 请求 body: (empty)')
+    request_raw = (raw_body[:2000].decode('utf-8', errors='replace') + (' ... (truncated)' if len(raw_body) > 2000 else '')) if raw_body else '(empty)'
+
+    # 请求参数和 body 输出到控制台和日志文件（含 request_raw 列）
+    logger.info(
+        'webhook 请求: method=%s path=%s username=%s robot_name=%s query=%s | request_raw=%s',
+        request.method, request.path, username, robot_name, dict(request.GET), request_raw
+    )
 
     try:
         # 获取用户和机器人
@@ -320,16 +315,21 @@ def webhook_callback(request, username, robot_name):
             robot = Robot.objects.get(owner=user, name=robot_name, is_active=True)
         except (User.DoesNotExist, Robot.DoesNotExist):
             resp_body = {'error': 'Robot not found'}
+            response_raw = json.dumps(resp_body, ensure_ascii=False)
             logger.error(
-                'webhook 响应错误 404: 请求 body(raw)=%s | 响应 body=%s',
-                raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
-                resp_body
+                'webhook 响应错误 404: request_raw=%s | response_raw=%s | 响应 body=%s',
+                request_raw, response_raw, resp_body
             )
             return JsonResponse(resp_body, status=404)
         
         # GET请求：WPS验证回调地址
         if request.method == 'GET':
-            return JsonResponse({'result': 'ok'})
+            get_resp = {'result': 'ok'}
+            logger.info(
+                'webhook 响应 GET 200: request_raw=%s | response_raw=%s',
+                request_raw, json.dumps(get_resp, ensure_ascii=False)
+            )
+            return JsonResponse(get_resp)
         
         # POST请求:处理消息
         # 解析请求数据（空 body 或 Go/部分客户端发来的请求按 {} 处理，避免 400）
@@ -471,20 +471,20 @@ def webhook_callback(request, username, robot_name):
         
         message_record.save()
         
-        # 成功响应也记录请求 body 与响应 body
+        # 成功响应：记录 request_raw、response_raw 及解析后的 body
+        response_raw = json.dumps(final_response, ensure_ascii=False)
         logger.info(
-            'webhook 响应成功 200: 请求 body(parsed)=%s | 响应 body=%s',
-            data, final_response
+            'webhook 响应成功 200: request_raw=%s | response_raw=%s | 请求 body(parsed)=%s | 响应 body=%s',
+            request_raw, response_raw, data, final_response
         )
         return JsonResponse(final_response)
     
     except Exception as e:
         resp_body = {'error': 'Internal server error', 'message': str(e)}
+        response_raw = json.dumps(resp_body, ensure_ascii=False)
         logger.error(
-            'webhook 响应错误 500: 异常=%s traceback=%s | 请求 body(raw)=%s | 响应 body=%s',
-            type(e).__name__, traceback.format_exc(),
-            raw_body[:2000].decode('utf-8', errors='replace') if raw_body else '(empty)',
-            resp_body,
+            'webhook 响应错误 500: request_raw=%s | response_raw=%s | 异常=%s traceback=%s | 响应 body=%s',
+            request_raw, response_raw, type(e).__name__, traceback.format_exc(), resp_body,
             exc_info=True
         )
         return JsonResponse(resp_body, status=500)
